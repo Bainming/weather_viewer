@@ -65,6 +65,9 @@ ui <- fluidPage(
     ),
     
     mainPanel(
+      htmlOutput("selection_text"),
+      textOutput("observation_text"),
+      
       fluidRow(
         valueBoxOutput("avg_temp_box"),
         valueBoxOutput("max_temp_box"),
@@ -72,7 +75,6 @@ ui <- fluidPage(
       ),
       
       h4("Summary Stats"),
-      verbatimTextOutput("summary_text"),
       plotlyOutput("ts_plot"),
       plotlyOutput("dist_plot"),
       
@@ -115,12 +117,26 @@ server <- function(input, output) {
       mutate(daily_change = estimate * 1)
   })
   
+  output$selection_text <- renderUI({
+    req(input$date_range, input$site_select)
+    duration <- as.numeric(input$date_range[2] - input$date_range[1]) + 1
+    HTML(paste0(
+      "<b>Viewing data for station: </b>", input$site_select, 
+      "<br><b>Date range: </b>", input$date_range[1], " to ", input$date_range[2],
+      " (", duration, " days)"
+    ))
+  })
+  
+  output$observation_text <- renderText({
+    data <- filtered_data()
+    paste("Number of observations:", nrow(data))
+  })
+  
   output$avg_temp_box <- renderValueBox({
     data <- filtered_data()
     valueBox(
       value = round(mean(data$temp, na.rm = TRUE), 1),
       subtitle = "Avg Temp (°F)",
-      icon = icon("thermometer-half"),
       color = "aqua"
     )
   })
@@ -130,7 +146,6 @@ server <- function(input, output) {
     valueBox(
       value = round(max(data$temp, na.rm = TRUE), 1),
       subtitle = "Max Temp (°F)",
-      icon = icon("fire"),
       color = "red"
     )
   })
@@ -140,16 +155,8 @@ server <- function(input, output) {
     valueBox(
       value = round(min(data$temp, na.rm = TRUE), 1),
       subtitle = "Min Temp (°F)",
-      icon = icon("snowflake"),
       color = "light-blue"
     )
-  })
-  
-  output$summary_text <- renderPrint({
-    data <- filtered_data()
-    cat("Avg:", round(mean(data$temp, na.rm = TRUE), 1),
-        " Max:", round(max(data$temp, na.rm = TRUE), 1),
-        " Min:", round(min(data$temp, na.rm = TRUE), 1), "\n")
   })
   
   output$ts_plot <- renderPlotly({
