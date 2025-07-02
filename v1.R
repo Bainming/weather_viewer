@@ -9,14 +9,14 @@ library(plotly)
 sites_sf <- readRDS("data/sites.rds")
 sites_complement <- read_csv("data/complement38.csv", show_col_types = FALSE)
 
-site_data <- st_drop_geometry(sites_sf) %>%
-  left_join(sites_complement, by = "aqs_id_full") %>%
-  mutate(site_name = coalesce(site_name.x, site_name.y)) %>%
+site_data <- st_drop_geometry(sites_sf) |>
+  left_join(sites_complement, by = "aqs_id_full") |>
+  mutate(site_name = coalesce(site_name.x, site_name.y)) |>
   select(-site_name.x, -site_name.y)
 
 # Load and process weather data
 weather_df <- read_csv("data/weather.csv", show_col_types = FALSE,
-                       col_types = cols(datetime = col_character())) %>%
+                       col_types = cols(datetime = col_character())) |>
   mutate(
     datetime = parse_date_time(datetime,
                                orders = c("ymd HMS z", "ymd HM z", "ymd H z", "ymd"),
@@ -24,17 +24,17 @@ weather_df <- read_csv("data/weather.csv", show_col_types = FALSE,
     date = as_date(datetime),
     month = month(datetime, label = TRUE, abbr = FALSE),
     hour = hour(datetime)
-  ) %>%
+  ) |>
   filter(
     datetime >= as_datetime("2024-01-01 00:00:00", tz = "UTC"),
     datetime < as_datetime("2025-01-01 00:00:00", tz = "UTC"),
     !is.na(temp),
     !is.na(humidity)
-  ) %>%
+  ) |>
   left_join(site_data, by = "aqs_id_full")
 
-daily_weather <- weather_df %>%
-  group_by(aqs_id_full, date, site_name) %>%
+daily_weather <- weather_df |>
+  group_by(aqs_id_full, date, site_name) |>
   summarise(
     avg_temp = mean(temp, na.rm = TRUE),
     max_temp = max(temp, na.rm = TRUE),
@@ -81,7 +81,7 @@ server <- function(input, output) {
   
   filtered_data <- reactive({
     req(input$date_range, input$site_select, input$variable)
-    weather_df %>%
+    weather_df |>
       filter(date >= input$date_range[1],
              date <= input$date_range[2],
              site_name %in% input$site_select)
@@ -89,7 +89,7 @@ server <- function(input, output) {
   
   trend_data <- reactive({
     req(input$site_select, input$date_range)
-    daily_weather %>%
+    daily_weather |>
       filter(date >= input$date_range[1],
              date <= input$date_range[2],
              site_name %in% input$site_select)
@@ -103,8 +103,8 @@ server <- function(input, output) {
   reactive_summary <- reactive({
     if (nrow(trend_data()) < 3) return(NULL)
     model <- reactive_model()
-    tidy(model, conf.int = TRUE) %>% 
-      filter(term == "as.numeric(date)") %>%
+    tidy(model, conf.int = TRUE) |> 
+      filter(term == "as.numeric(date)") |>
       mutate(daily_change = estimate * 1)
   })
   
