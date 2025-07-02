@@ -4,6 +4,7 @@ library(lubridate)
 library(sf)
 library(broom)
 library(plotly)
+library(shinydashboard)
 
 # Load site data
 sites_sf <- readRDS("data/sites.rds")
@@ -64,6 +65,12 @@ ui <- fluidPage(
     ),
     
     mainPanel(
+      fluidRow(
+        valueBoxOutput("avg_temp_box"),
+        valueBoxOutput("max_temp_box"),
+        valueBoxOutput("min_temp_box")
+      ),
+      
       h4("Summary Stats"),
       verbatimTextOutput("summary_text"),
       plotlyOutput("ts_plot"),
@@ -106,6 +113,36 @@ server <- function(input, output) {
     tidy(model, conf.int = TRUE) |> 
       filter(term == "as.numeric(date)") |>
       mutate(daily_change = estimate * 1)
+  })
+  
+  output$avg_temp_box <- renderValueBox({
+    data <- filtered_data()
+    valueBox(
+      value = round(mean(data$temp, na.rm = TRUE), 1),
+      subtitle = "Avg Temp (°F)",
+      icon = icon("thermometer-half"),
+      color = "aqua"
+    )
+  })
+  
+  output$max_temp_box <- renderValueBox({
+    data <- filtered_data()
+    valueBox(
+      value = round(max(data$temp, na.rm = TRUE), 1),
+      subtitle = "Max Temp (°F)",
+      icon = icon("fire"),
+      color = "red"
+    )
+  })
+  
+  output$min_temp_box <- renderValueBox({
+    data <- filtered_data()
+    valueBox(
+      value = round(min(data$temp, na.rm = TRUE), 1),
+      subtitle = "Min Temp (°F)",
+      icon = icon("snowflake"),
+      color = "light-blue"
+    )
   })
   
   output$summary_text <- renderPrint({
