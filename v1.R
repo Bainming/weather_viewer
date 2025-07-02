@@ -51,7 +51,7 @@ ui <- fluidPage(
     sidebarPanel(
       dateRangeInput("date_range", "Date Range",
                      start = min(weather_df$date),
-                     end = max(weather_df$date),
+                     end = min(weather_df$date) + 3,
                      min = min(weather_df$date),
                      max = max(weather_df$date)),
       selectInput("site_select", "Select Site",
