@@ -87,7 +87,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(id = "tabs",
                 menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
-                menuItem("Trend Analysis", tabName = "trend", icon = icon("chart-line")),
+                menuItem("Temporal Analysis", tabName = "trend", icon = icon("chart-line")),
                 menuItem("Spatial Analysis", tabName = "spatial", icon = icon("map"))
     )
   ),
@@ -133,7 +133,8 @@ ui <- dashboardPage(
                 valueBoxOutput("beta_ci")
               ),
               fluidRow(
-                box(verbatimTextOutput("model_summary"), width = 12)
+                box(width = 12, title = "Model Interpretation", solidHeader = TRUE, status = "info",
+                    tags$div(style = "font-size:18px; line-height:1.6;", textOutput("model_summary")))
               )
       ),
       
@@ -270,28 +271,27 @@ server <- function(input, output, session) {
     valueBox(ci, "95% Confidence Interval", color = "light-blue")
   })
   
-  output$model_summary <- renderPrint({
+  output$model_summary <- renderText({
     model <- reactive_model()
     glance_df <- glance(model)
-    cat("Daily Temperature Trend Model\n")
-    cat("================================================\n")
-    cat("Date Range:", input$date_range_trend[1], "to", input$date_range_trend[2], "\n")
-    cat("Selected Site:", input$site_select_trend, "\n\n")
-    cat("Model Formula:\nDaily Temperature = β₀ + β₁ * Time\n\n")
-    cat("Coefficients:\n")
-    print(tidy(model))
-    cat("\nModel Significance:\n")
-    cat("R-squared:", round(glance_df$r.squared, 4), "\n")
-    cat("Adjusted R-squared:", round(glance_df$adj.r.squared, 4), "\n")
-    cat("F-statistic:", round(glance_df$statistic, 2),
-        "on", glance_df$df, "DF\n")
-    cat("p-value:", glance_df$p.value, "\n")
-    if (glance_df$p.value < 0.05) {
-      cat("Statistically significant trend detected (p < 0.05)\n")
+    summ <- reactive_summary()
+    
+    direction <- ifelse(summ$daily_change > 0, "increasing", "decreasing")
+    rate <- round(summ$daily_change, 4)
+    pval <- glance_df$p.value
+    
+    if (pval < 0.05) {
+      signif_text <- "This change is statistically significant."
     } else {
-      cat("No significant trend detected (p ≥ 0.05)\n")
+      signif_text <- "However, this change is not statistically significant."
     }
-    cat("Daily temperature change: β₁ =", round(coef(model)[2], 6), "°F per day\n")
+    
+    paste0(
+      "Between ", input$date_range_trend[1], " and ", input$date_range_trend[2], 
+      ", the average daily temperature at ", input$site_select_trend, 
+      " has been ", direction, " at a rate of ", rate, " °F per day. ",
+      signif_text
+    )
   })
   
   # === Spatial Logic ===
