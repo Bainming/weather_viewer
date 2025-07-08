@@ -14,11 +14,12 @@ library(DT)
 sites_sf <- readRDS("data/sites.rds")
 sites_complement <- read_csv("data/complement38.csv", show_col_types = FALSE)
 
-site_data <- st_drop_geometry(sites_sf) |>
-  left_join(sites_complement, by = "aqs_id_full") |>
-  mutate(site_name = coalesce(site_name.x, site_name.y)) |>
-  select(-site_name.x, -site_name.y) |>
-  cbind(., st_coordinates(sites_sf))
+site_data_base <- st_drop_geometry(sites_sf) %>%
+  left_join(sites_complement, by = "aqs_id_full") %>%
+  mutate(site_name = coalesce(site_name.x, site_name.y)) %>%
+  select(-site_name.x, -site_name.y)
+
+site_data <- cbind(site_data_base, st_coordinates(sites_sf))
 
 weather_df <- read_csv("data/weather.csv",
                        show_col_types = FALSE,
@@ -48,9 +49,6 @@ all_stations <- weather_df |>
             min_temp = min(temp, na.rm = TRUE),
             .groups = "drop")
 
-ny_boundary <- counties(cb = TRUE, resolution = "20m") |>
-  filter(STUSPS == "NY")
-
 all_counties <- counties(cb = TRUE, resolution = "20m")
 
 site_hull <- sites_sf |> 
@@ -60,7 +58,7 @@ site_hull <- sites_sf |>
 site_hull <- st_transform(site_hull, st_crs(all_counties))
 
 ny_boundary <- all_counties |>
-  filter(st_intersects(geometry, site_hull, sparse = FALSE))
+  filter(as.vector(st_intersects(geometry, site_hull, sparse = FALSE)))
 
 ref_station <- filter(all_stations, site_name == "Manhattan Bridge")
 
