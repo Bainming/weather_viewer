@@ -31,7 +31,7 @@ shiny::runApp("v1.R")
 Make sure the following packages are installed:
 
 ```r
-install.packages(c("shiny", "tidyverse", "lubridate", "sf", "broom", "plotly"))
+install.packages(c("shiny", "shinydashboard" "tidyverse", "lubridate", "sf", "broom", "plotly", "ggridges"))
 ```
 
 ## 📊 Features
