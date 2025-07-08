@@ -14,52 +14,52 @@ library(DT)
 sites_sf <- readRDS("data/sites.rds")
 sites_complement <- read_csv("data/complement38.csv", show_col_types = FALSE)
 
-site_data <- st_drop_geometry(sites_sf) %>%
-  left_join(sites_complement, by = "aqs_id_full") %>%
-  mutate(site_name = coalesce(site_name.x, site_name.y)) %>%
-  select(-site_name.x, -site_name.y) %>%
+site_data <- st_drop_geometry(sites_sf) |>
+  left_join(sites_complement, by = "aqs_id_full") |>
+  mutate(site_name = coalesce(site_name.x, site_name.y)) |>
+  select(-site_name.x, -site_name.y) |>
   cbind(., st_coordinates(sites_sf))
 
 weather_df <- read_csv("data/weather.csv",
                        show_col_types = FALSE,
-                       col_types = cols(datetime = col_character())) %>%
+                       col_types = cols(datetime = col_character())) |>
   mutate(datetime = parse_date_time(datetime,
                                     orders = c("ymd HMS z", "ymd HM z", "ymd H z", "ymd"),
-                                    tz = "UTC")) %>%
+                                    tz = "UTC")) |>
   filter(datetime >= as_datetime("2024-01-01", tz = "UTC"),
-         datetime < as_datetime("2025-01-01", tz = "UTC")) %>%
-  left_join(site_data, by = "aqs_id_full") %>%
+         datetime < as_datetime("2025-01-01", tz = "UTC")) |>
+  left_join(site_data, by = "aqs_id_full") |>
   mutate(month = month(datetime, label = TRUE, abbr = FALSE),
          hour = hour(datetime),
          date = as_date(datetime))
 
-daily_weather <- weather_df %>%
-  group_by(aqs_id_full, date, site_name) %>%
+daily_weather <- weather_df |>
+  group_by(aqs_id_full, date, site_name) |>
   summarise(avg_temp = mean(temp, na.rm = TRUE),
             max_temp = max(temp, na.rm = TRUE),
             min_temp = min(temp, na.rm = TRUE),
             avg_humidity = mean(humidity, na.rm = TRUE),
             .groups = "drop")
 
-all_stations <- weather_df %>%
-  group_by(aqs_id_full, site_name, X, Y) %>%
+all_stations <- weather_df |>
+  group_by(aqs_id_full, site_name, X, Y) |>
   summarise(avg_temp = mean(temp, na.rm = TRUE),
             max_temp = max(temp, na.rm = TRUE),
             min_temp = min(temp, na.rm = TRUE),
             .groups = "drop")
 
-ny_boundary <- counties(cb = TRUE, resolution = "20m") %>%
+ny_boundary <- counties(cb = TRUE, resolution = "20m") |>
   filter(STUSPS == "NY")
 
 all_counties <- counties(cb = TRUE, resolution = "20m")
 
-site_hull <- sites_sf %>% 
-  st_union() %>%           
+site_hull <- sites_sf |> 
+  st_union() |>           
   st_convex_hull()   
 
 site_hull <- st_transform(site_hull, st_crs(all_counties))
 
-ny_boundary <- all_counties %>%
+ny_boundary <- all_counties |>
   filter(st_intersects(geometry, site_hull, sparse = FALSE))
 
 ref_station <- filter(all_stations, site_name == "Manhattan Bridge")
@@ -73,7 +73,7 @@ all_stations$distance_to_ref <- as.numeric(
 sites_sf <- st_as_sf(site_data, coords = c("X", "Y"), crs = st_crs(ny_boundary))
 ny_stations <- st_join(sites_sf, ny_boundary, left = FALSE)
 
-cluster_stations <- all_stations %>%
+cluster_stations <- all_stations |>
   filter(site_name %in% ny_stations$site_name)
 
 set.seed(123)
@@ -179,7 +179,7 @@ server <- function(input, output, session) {
   # === Dashboard Logic ===
   filtered_data <- reactive({
     req(input$date_range_dashboard, input$site_select_dashboard, input$variable_dashboard)
-    weather_df %>%
+    weather_df |>
       filter(date >= input$date_range_dashboard[1],
              date <= input$date_range_dashboard[2],
              site_name == input$site_select_dashboard)
@@ -230,7 +230,7 @@ server <- function(input, output, session) {
   # === Trend Logic ===
   trend_data <- reactive({
     req(input$date_range_trend, input$site_select_trend)
-    daily_weather %>%
+    daily_weather |>
       filter(date >= input$date_range_trend[1],
              date <= input$date_range_trend[2],
              site_name == input$site_select_trend)
@@ -242,8 +242,8 @@ server <- function(input, output, session) {
   })
   
   reactive_summary <- reactive({
-    tidy(reactive_model(), conf.int = TRUE) %>%
-      filter(term == "as.numeric(date)") %>%
+    tidy(reactive_model(), conf.int = TRUE) |>
+      filter(term == "as.numeric(date)") |>
       mutate(daily_change = estimate)
   })
   
@@ -297,8 +297,8 @@ server <- function(input, output, session) {
   # === Spatial Logic ===
   spatial_metrics <- reactive({
     req(input$spatial_site_select)
-    cluster_stations %>%
-      filter(site_name %in% input$spatial_site_select) %>%
+    cluster_stations |>
+      filter(site_name %in% input$spatial_site_select) |>
       summarise(
         avg_distance = round(mean(distance_to_ref, na.rm = TRUE), 2),
         min_temp = min(avg_temp, na.rm = TRUE),
@@ -328,28 +328,28 @@ server <- function(input, output, session) {
   })
   
   output$interactive_map <- renderLeaflet({
-    stations <- cluster_stations %>%
-      filter(site_name %in% input$spatial_site_select) %>%
+    stations <- cluster_stations |>
+      filter(site_name %in% input$spatial_site_select) |>
       st_as_sf(coords = c("X", "Y"), crs = st_crs(sites_sf))
     pal <- colorFactor(palette = "Set1", domain = stations$cluster)
     ny_bbox <- st_bbox(ny_stations)
     
-    leaflet() %>%
-      addProviderTiles(providers$CartoDB.Positron) %>%
-      addPolygons(data = ny_boundary, fillColor = "transparent", color = "#444444", weight = 2) %>%
+    leaflet() |>
+      addProviderTiles(providers$CartoDB.Positron) |>
+      addPolygons(data = ny_boundary, fillColor = "transparent", color = "#444444", weight = 2) |>
       addCircleMarkers(data = stations, radius = 8, color = ~pal(cluster), stroke = FALSE,
                        fillOpacity = 0.8, label = ~site_name,
                        popup = ~paste0("<b>", site_name, "</b><br>",
                                        "Avg Temp: ", round(avg_temp, 1), "°F<br>",
-                                       "Distance: ", round(distance_to_ref, 1), " km")) %>%
+                                       "Distance: ", round(distance_to_ref, 1), " km")) |>
       addLegend(position = "bottomright", pal = pal, values = stations$cluster,
-                title = "Temperature Clusters") %>%
+                title = "Temperature Clusters") |>
       fitBounds(ny_bbox[["xmin"]], ny_bbox[["ymin"]],
                 ny_bbox[["xmax"]], ny_bbox[["ymax"]])
   })
   
   output$spatial_plot <- renderPlotly({
-    stations <- cluster_stations %>%
+    stations <- cluster_stations |>
       filter(site_name %in% input$spatial_site_select)
     
     req(nrow(stations) > 0)
@@ -364,7 +364,7 @@ server <- function(input, output, session) {
       color = ~cluster,
       colors = RColorBrewer::brewer.pal(3, "Set1"),
       marker = list(size = 6)
-    ) %>%
+    ) |>
       layout(
         title = "3D Temperature Cluster View",
         scene = list(
@@ -376,9 +376,9 @@ server <- function(input, output, session) {
   })
   
   output$spatial_table <- renderDT({
-    cluster_stations %>%
-      filter(site_name %in% input$spatial_site_select) %>%
-      select(site_name, avg_temp, cluster) %>%  # 去掉 distance_to_ref
+    cluster_stations |>
+      filter(site_name %in% input$spatial_site_select) |>
+      select(site_name, avg_temp, cluster) |>  # 去掉 distance_to_ref
       mutate(avg_temp = round(avg_temp, 1))
   }, options = list(pageLength = 5),
   colnames = c(
@@ -389,13 +389,13 @@ server <- function(input, output, session) {
   
   
   output$cluster_summary_text <- renderText({
-    stations <- cluster_stations %>% 
+    stations <- cluster_stations |> 
       filter(site_name %in% input$spatial_site_select)
     
     if (nrow(stations) == 0) return("No stations selected.")
     
-    cluster_counts <- stations %>%
-      count(cluster) %>%
+    cluster_counts <- stations |>
+      count(cluster) |>
       arrange(cluster)
     
     summary_text <- paste0(
@@ -406,13 +406,13 @@ server <- function(input, output, session) {
   })
   
   output$cluster_avg_temp_text <- renderText({
-    stations <- cluster_stations %>% 
+    stations <- cluster_stations |> 
       filter(site_name %in% input$spatial_site_select)
     
     if (nrow(stations) == 0) return("No stations selected.")
     
-    avg_temp_by_cluster <- stations %>%
-      group_by(cluster) %>%
+    avg_temp_by_cluster <- stations |>
+      group_by(cluster) |>
       summarise(avg_temp = round(mean(avg_temp, na.rm = TRUE), 2), .groups = "drop")
     
     summary_text <- paste0(
