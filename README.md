@@ -11,6 +11,7 @@ SYSEN-5460-Project-main/
 │   ├── complement38.csv
 │   └── weather.csv
 ├── v1.R
+├── v2.R
 ├── README.md
 ```
 
@@ -21,41 +22,37 @@ SYSEN-5460-Project-main/
 3. Run the following command:
 
 ```r
-shiny::runApp("v1.R")
+shiny::runApp("v2.R")
 ```
 
-> 📌 Alternatively, open `v1.R` and click the "Run App" button in RStudio.
+> 📌 Alternatively, open `v2.R` and click the "Run App" button in RStudio.
 
 ## 📦 Required Packages
 
 Make sure the following packages are installed:
 
 ```r
-install.packages(c("shiny", "shinydashboard" "tidyverse", "lubridate", "sf", "broom", "plotly", "ggridges"))
+install.packages(c("shiny", "shinydashboard" "tidyverse", "lubridate", "sf", "broom", "tigris", "ggspatial", "plotly", "leaflet", "DT"))
 ```
 
 ## 📊 Features
+- **Dashboard**:
+  - Interactive time series plot of selected weather variables
+  - Density distribution plot to show value spread
+  
+- **Temporal Analysis**:
+  - Performs linear regression on daily average temperature
+  - Displays regression line with annotated slope (Temperature change per day)
+  - Includes a concise summary of trends for users
 
-- **Date Range Selector**: Filter the data by a specific date range.
-- **Site Selection**: Choose from available monitoring sites (e.g., Manhattan Bridge).
-- **Variable Toggle**: View either temperature or humidity metrics.
-- **Summary Statistics**: View average, min, and max of selected variable.
-- **Interactive Plots**:
-  - Temporal analysis plot (`plotly`)
-  - Distribution density plot (`plotly`)
-- **Trend Analysis**:
-  - Linear regression on daily average temperature
-  - Slope (β), R², and p-value reported
-  - Regression line with annotation on plot
-
+- **Spatial Analysis**:
+  - Clusters monitoring sites into 3 groups using k-means based on annual average temperature
+  - Visualizes clustered sites on a map
+  - Includes a 3D scatter plot of clusters by longitude, latitude, and temperature
+  - Provides a searchable and sortable table of site-level data
+  
 ## 📁 Data Files
 
 - `data/sites.rds`: Spatial dataset of monitoring site locations
 - `data/complement38.csv`: Site name complement data
 - `data/weather.csv`: Hourly weather observations including temperature and humidity
-
-## 📝 Notes
-
-- The app automatically filters data to include only the year **2024**.
-- At least **3 days** of data are required to run the trend analysis.
-- Missing values (`NA`) in temperature or humidity are excluded from analysis.
