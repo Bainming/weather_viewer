@@ -14,9 +14,9 @@ library(DT)
 sites_sf <- readRDS("data/sites.rds")
 sites_complement <- read_csv("data/complement38.csv", show_col_types = FALSE)
 
-site_data_base <- st_drop_geometry(sites_sf) %>%
-  left_join(sites_complement, by = "aqs_id_full") %>%
-  mutate(site_name = coalesce(site_name.x, site_name.y)) %>%
+site_data_base <- st_drop_geometry(sites_sf) |>
+  left_join(sites_complement, by = "aqs_id_full") |>
+  mutate(site_name = coalesce(site_name.x, site_name.y)) |>
   select(-site_name.x, -site_name.y)
 
 site_data <- cbind(site_data_base, st_coordinates(sites_sf))
@@ -28,7 +28,9 @@ weather_df <- read_csv("data/weather.csv",
                                     orders = c("ymd HMS z", "ymd HM z", "ymd H z", "ymd"),
                                     tz = "UTC")) |>
   filter(datetime >= as_datetime("2024-01-01", tz = "UTC"),
-         datetime < as_datetime("2025-01-01", tz = "UTC")) |>
+         datetime < as_datetime("2025-01-01", tz = "UTC"),
+         !is.na(temp), !is.na(humidity)
+         ) |>
   left_join(site_data, by = "aqs_id_full") |>
   mutate(month = month(datetime, label = TRUE, abbr = FALSE),
          hour = hour(datetime),
@@ -42,7 +44,7 @@ daily_weather <- weather_df |>
             avg_humidity = mean(humidity, na.rm = TRUE),
             .groups = "drop")
 
-all_stations <- weather_df |>
+all_sites <- weather_df |>
   group_by(aqs_id_full, site_name, X, Y) |>
   summarise(avg_temp = mean(temp, na.rm = TRUE),
             max_temp = max(temp, na.rm = TRUE),
@@ -60,24 +62,24 @@ site_hull <- st_transform(site_hull, st_crs(all_counties))
 ny_boundary <- all_counties |>
   filter(as.vector(st_intersects(geometry, site_hull, sparse = FALSE)))
 
-ref_station <- filter(all_stations, site_name == "Manhattan Bridge")
+ref_site <- filter(all_sites, site_name == "Manhattan Bridge")
 
-all_stations$distance_to_ref <- as.numeric(
+all_sites$distance_to_ref <- as.numeric(
   st_distance(
-    st_as_sf(all_stations, coords = c("X", "Y"), crs = st_crs(sites_sf)),
-    st_as_sf(ref_station, coords = c("X", "Y"), crs = st_crs(sites_sf)))
+    st_as_sf(all_sites, coords = c("X", "Y"), crs = st_crs(sites_sf)),
+    st_as_sf(ref_site, coords = c("X", "Y"), crs = st_crs(sites_sf)))
 ) / 1000
 
 sites_sf <- st_as_sf(site_data, coords = c("X", "Y"), crs = st_crs(ny_boundary))
-ny_stations <- st_join(sites_sf, ny_boundary, left = FALSE)
+ny_sites <- st_join(sites_sf, ny_boundary, left = FALSE)
 
-cluster_stations <- all_stations |>
-  filter(site_name %in% ny_stations$site_name)
+cluster_sites <- all_sites |>
+  filter(site_name %in% ny_sites$site_name)
 
 set.seed(123)
-kmeans_result <- kmeans(cluster_stations[, c("avg_temp")], centers = 3)
+kmeans_result <- kmeans(cluster_sites[, c("avg_temp")], centers = 3)
 
-cluster_stations$cluster <- as.factor(kmeans_result$cluster)
+cluster_sites$cluster <- as.factor(kmeans_result$cluster)
 
 # ---- UI ----
 ui <- dashboardPage(
@@ -103,7 +105,7 @@ ui <- dashboardPage(
                                               start = min(weather_df$date), end = min(weather_df$date)+2,
                                               min = min(weather_df$date), max = max(weather_df$date))),
                 box(width = 4, selectInput("site_select_dashboard", "Select Site",
-                                           choices = unique(ny_stations$site_name), selected = "Manhattan Bridge")),
+                                           choices = unique(ny_sites$site_name), selected = "Manhattan Bridge")),
                 box(width = 4, radioButtons("variable_dashboard", "Weather Variable",
                                             choices = c("Temperature" = "temp", "Humidity" = "humidity"),
                                             selected = "temp"))
@@ -123,7 +125,7 @@ ui <- dashboardPage(
                                               start = min(weather_df$date), end = min(weather_df$date)+2,
                                               min = min(weather_df$date), max = max(weather_df$date))),
                 box(width = 6, selectInput("site_select_trend", "Select Site",
-                                           choices = unique(ny_stations$site_name), selected = "Manhattan Bridge"))
+                                           choices = unique(ny_sites$site_name), selected = "Manhattan Bridge"))
               ),
               fluidRow(
                 box(plotOutput("trend_plot"), width = 8),
@@ -139,8 +141,8 @@ ui <- dashboardPage(
       tabItem(tabName = "spatial",
               fluidRow(
                 box(width = 12, selectInput("spatial_site_select", "Selected Site(s)",
-                                           choices = unique(ny_stations$site_name),
-                                           selected = unique(ny_stations$site_name), multiple = TRUE))
+                                           choices = unique(ny_sites$site_name),
+                                           selected = unique(ny_sites$site_name), multiple = TRUE))
               ),
               fluidRow(
                 box(width = 6,
@@ -161,11 +163,11 @@ ui <- dashboardPage(
                 )
               ),
               fluidRow(
-                box(leafletOutput("interactive_map"), width = 6, title = "Station Locations and Clusters", solidHeader = TRUE, status = "success"),
+                box(leafletOutput("interactive_map"), width = 6, title = "site Locations and Clusters", solidHeader = TRUE, status = "success"),
                 box(plotlyOutput("spatial_plot"), width = 6, title = "3D Temperature Gradient", solidHeader = TRUE, status = "warning")
               ),
               fluidRow(
-                box(DTOutput("spatial_table"), width = 12, title = "Spatial Station Metrics", solidHeader = TRUE, status = "info")
+                box(DTOutput("spatial_table"), width = 12, title = "Site Table", solidHeader = TRUE, status = "info")
               )
       )
     )
@@ -295,7 +297,7 @@ server <- function(input, output, session) {
   # === Spatial Logic ===
   spatial_metrics <- reactive({
     req(input$spatial_site_select)
-    cluster_stations |>
+    cluster_sites |>
       filter(site_name %in% input$spatial_site_select) |>
       summarise(
         avg_distance = round(mean(distance_to_ref, na.rm = TRUE), 2),
@@ -307,7 +309,7 @@ server <- function(input, output, session) {
   output$avg_distance <- renderValueBox({
     metrics <- spatial_metrics()
     valueBox(metrics$avg_distance,
-             subtitle = paste("Avg Distance to", ref_station$site_name, "(km)"),
+             subtitle = paste("Avg Distance to", ref_site$site_name, "(km)"),
              color = "teal")
   })
   
@@ -321,39 +323,39 @@ server <- function(input, output, session) {
   })
   
   output$cluster_info <- renderValueBox({
-    selected <- n_distinct(filter(cluster_stations, site_name %in% input$spatial_site_select)$cluster)
+    selected <- n_distinct(filter(cluster_sites, site_name %in% input$spatial_site_select)$cluster)
     valueBox(selected, "Clusters Represented", color = "purple")
   })
   
   output$interactive_map <- renderLeaflet({
-    stations <- cluster_stations |>
+    sites <- cluster_sites |>
       filter(site_name %in% input$spatial_site_select) |>
       st_as_sf(coords = c("X", "Y"), crs = st_crs(sites_sf))
-    pal <- colorFactor(palette = "Set1", domain = stations$cluster)
-    ny_bbox <- st_bbox(ny_stations)
+    pal <- colorFactor(palette = "Set1", domain = sites$cluster)
+    ny_bbox <- st_bbox(ny_sites)
     
     leaflet() |>
       addProviderTiles(providers$CartoDB.Positron) |>
       addPolygons(data = ny_boundary, fillColor = "transparent", color = "#444444", weight = 2) |>
-      addCircleMarkers(data = stations, radius = 8, color = ~pal(cluster), stroke = FALSE,
+      addCircleMarkers(data = sites, radius = 8, color = ~pal(cluster), stroke = FALSE,
                        fillOpacity = 0.8, label = ~site_name,
                        popup = ~paste0("<b>", site_name, "</b><br>",
                                        "Avg Temp: ", round(avg_temp, 1), "°F<br>",
                                        "Distance: ", round(distance_to_ref, 1), " km")) |>
-      addLegend(position = "bottomright", pal = pal, values = stations$cluster,
+      addLegend(position = "bottomright", pal = pal, values = sites$cluster,
                 title = "Temperature Clusters") |>
       fitBounds(ny_bbox[["xmin"]], ny_bbox[["ymin"]],
                 ny_bbox[["xmax"]], ny_bbox[["ymax"]])
   })
   
   output$spatial_plot <- renderPlotly({
-    stations <- cluster_stations |>
+    sites <- cluster_sites |>
       filter(site_name %in% input$spatial_site_select)
     
-    req(nrow(stations) > 0)
+    req(nrow(sites) > 0)
     
     plot_ly(
-      data = stations,
+      data = sites,
       x = ~X,  
       y = ~Y,  
       z = ~avg_temp,  
@@ -374,7 +376,7 @@ server <- function(input, output, session) {
   })
   
   output$spatial_table <- renderDT({
-    cluster_stations |>
+    cluster_sites |>
       filter(site_name %in% input$spatial_site_select) |>
       select(site_name, avg_temp, cluster) |>  # 去掉 distance_to_ref
       mutate(avg_temp = round(avg_temp, 1))
@@ -387,29 +389,29 @@ server <- function(input, output, session) {
   
   
   output$cluster_summary_text <- renderText({
-    stations <- cluster_stations |> 
+    sites <- cluster_sites |> 
       filter(site_name %in% input$spatial_site_select)
     
-    if (nrow(stations) == 0) return("No stations selected.")
+    if (nrow(sites) == 0) return("No sites selected.")
     
-    cluster_counts <- stations |>
+    cluster_counts <- sites |>
       count(cluster) |>
       arrange(cluster)
     
     summary_text <- paste0(
-      "Selected Stations by Cluster:\n",
-      paste0("Cluster ", cluster_counts$cluster, ": ", cluster_counts$n, " station(s)", collapse = "\n")
+      "Selected sites by Cluster:\n",
+      paste0("Cluster ", cluster_counts$cluster, ": ", cluster_counts$n, " site(s)", collapse = "\n")
     )
     return(summary_text)
   })
   
   output$cluster_avg_temp_text <- renderText({
-    stations <- cluster_stations |> 
+    sites <- cluster_sites |> 
       filter(site_name %in% input$spatial_site_select)
     
-    if (nrow(stations) == 0) return("No stations selected.")
+    if (nrow(sites) == 0) return("No sites selected.")
     
-    avg_temp_by_cluster <- stations |>
+    avg_temp_by_cluster <- sites |>
       group_by(cluster) |>
       summarise(avg_temp = round(mean(avg_temp, na.rm = TRUE), 2), .groups = "drop")
     
