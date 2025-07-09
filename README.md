@@ -11,7 +11,7 @@ SYSEN-5460-Project-main/
 │   ├── complement38.csv
 │   └── weather.csv
 ├── v1.R
-├── v2.R
+├── app.R
 ├── README.md
 ```
 
@@ -22,7 +22,7 @@ SYSEN-5460-Project-main/
 3. Run the following command:
 
 ```r
-shiny::runApp("v2.R")
+shiny::runApp("app.R")
 ```
 
 > 📌 Alternatively, open `v2.R` and click the "Run App" button in RStudio.
