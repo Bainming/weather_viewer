@@ -5,7 +5,7 @@ This Shiny application allows users to explore, visualize, and analyze daily wea
 ## 📁 Directory Structure
 
 ```
-SYSEN-5460-Project-main/
+root/
 ├── data/
 │   ├── sites.rds
 │   ├── complement38.csv
@@ -14,6 +14,8 @@ SYSEN-5460-Project-main/
 ├── app.R
 ├── README.md
 ```
+
+Weather data is sourced from weather.csv, while sites and complement38.csv are used to assign geographic coordinates to each site. County boundaries are retrieved using the tigris package to account for AQS sites that fall outside the initially provided range.
 
 ## 🚀 How to Run the App
 
